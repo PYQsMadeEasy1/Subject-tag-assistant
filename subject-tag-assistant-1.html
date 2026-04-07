@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Subject Tag Assistant</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    min-height: 100vh;
+    background: #080f1a;
+    color: #cbd5e1;
+    font-family: 'DM Mono', 'Fira Code', 'Courier New', monospace;
+    overflow-x: hidden;
+  }
+  .header {
+    background: linear-gradient(180deg, #0d1f35 0%, #080f1a 100%);
+    border-bottom: 1px solid #1e3a5f;
+    padding: 20px 16px 16px;
+  }
+  .header-top { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+  .header-title { font-size: 17px; font-weight: 800; color: #f1f5f9; letter-spacing: -0.3px; }
+  .header-sub { font-size: 11px; color: #475569; margin-top: 1px; }
+
+  .api-section {
+    background: #0d1a2e; border: 1px solid #1e3a5f;
+    border-radius: 10px; padding: 14px; margin-bottom: 12px;
+  }
+  .api-section-title { font-size: 11px; color: #f59e0b; letter-spacing: 1px; margin-bottom: 12px; }
+  .api-row { margin-bottom: 10px; }
+  .api-row:last-child { margin-bottom: 0; }
+  .api-label { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #94a3b8; margin-bottom: 5px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; }
+  .status-badge { font-size: 9px; padding: 1px 6px; border-radius: 10px; font-weight: 700; }
+  .badge-required { background: #7f1d1d; color: #fca5a5; }
+  .badge-optional { background: #1e3a5f; color: #7dd3fc; }
+  .badge-ok { background: #14532d; color: #86efac; }
+  .api-input {
+    width: 100%; padding: 9px 11px;
+    background: #050c15; border: 1px solid #1e3a5f;
+    border-radius: 7px; color: #e2e8f0;
+    font-size: 12px; outline: none; font-family: inherit; transition: border-color 0.2s;
+  }
+  .api-input:focus { border-color: #3b82f6; }
+  .api-input.ok { border-color: #22c55e40; }
+  .api-hint { font-size: 10px; color: #374151; margin-top: 4px; }
+  .api-hint a { color: #3b82f6; text-decoration: none; }
+
+  .main { padding: 14px; }
+
+  .upload-zone {
+    background: #0d1a2e; border: 2px dashed #1e3a5f;
+    border-radius: 12px; padding: 26px 16px;
+    text-align: center; cursor: pointer; margin-bottom: 12px; transition: all 0.3s;
+  }
+  .upload-zone:hover:not(.processing) { border-color: #3b82f6; background: #0f2040; }
+  .upload-zone.processing { border-color: #1e40af; cursor: not-allowed; }
+  .upload-zone.done { border-color: #166534; background: #0a2a1a; }
+  .upload-zone.err { border-color: #7f1d1d; background: #1a0a0a; }
+  .upload-icon { font-size: 34px; margin-bottom: 8px; }
+  .upload-title { font-size: 15px; font-weight: 700; color: #f1f5f9; margin-bottom: 4px; }
+  .upload-sub { font-size: 11px; color: #475569; }
+  .progress-wrap { margin-top: 14px; background: #1e2d42; border-radius: 4px; height: 4px; overflow: hidden; display: none; }
+  .progress-bar { height: 100%; background: linear-gradient(90deg, #3b82f6, #06b6d4); width: 0%; transition: width 0.5s ease; border-radius: 4px; }
+
+  .log-panel {
+    background: #050c15; border: 1px solid #1e3a5f;
+    border-radius: 10px; padding: 12px; margin-bottom: 12px;
+    max-height: 200px; overflow-y: auto; display: none;
+  }
+  .log-panel.visible { display: block; }
+  .log-header-label { font-size: 10px; color: #1e3a5f; margin-bottom: 8px; letter-spacing: 1px; }
+  .log-entry { font-size: 12px; margin-bottom: 3px; line-height: 1.5; }
+  .log-info { color: #7dd3fc; }
+  .log-success { color: #86efac; }
+  .log-error { color: #fca5a5; }
+  .log-warn { color: #fde68a; }
+  .log-dim { color: #64748b; }
+
+  .tag-summary {
+    background: #0d1a2e; border: 1px solid #1e3a5f;
+    border-radius: 10px; padding: 14px; margin-bottom: 12px; display: none;
+  }
+  .tag-summary.visible { display: block; }
+  .tag-summary-title { font-size: 11px; color: #f59e0b; letter-spacing: 1px; margin-bottom: 10px; }
+  .tag-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tag-chip { display: flex; align-items: center; gap: 5px; background: #050c15; border-radius: 6px; padding: 4px 8px; font-size: 11px; }
+  .tag-chip-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .tag-chip-name { color: #cbd5e1; }
+  .tag-chip-count { background: #1e3a5f; border-radius: 4px; padding: 0 5px; font-size: 10px; color: #7dd3fc; }
+
+  .rules-panel { background: #0d1a2e; border: 1px solid #1e3a5f; border-radius: 10px; overflow: hidden; margin-bottom: 12px; }
+  .rules-header { padding: 12px 14px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
+  .rules-header-text { font-size: 11px; color: #94a3b8; letter-spacing: 1px; }
+  .rules-toggle { font-size: 12px; color: #475569; }
+  .rules-body { padding: 0 14px 14px; border-top: 1px solid #1e3a5f; display: none; }
+  .rules-body.open { display: block; }
+  .rules-section-title { font-size: 10px; color: #f59e0b; letter-spacing: 1px; margin: 12px 0 8px; }
+  .tier-item { display: flex; gap: 8px; margin-bottom: 8px; padding-left: 8px; }
+  .tier-title { font-size: 11px; color: #e2e8f0; font-weight: 600; }
+  .tier-desc { font-size: 10px; color: #64748b; margin-top: 2px; line-height: 1.4; }
+  .overlap-item { margin-bottom: 6px; padding-left: 8px; border-left: 2px solid #1e3a5f; }
+  .overlap-q { font-size: 10px; color: #94a3b8; }
+  .overlap-a { font-size: 11px; color: #4ade80; }
+  .subject-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+  .subject-chip { background: #050c15; border-radius: 4px; padding: 2px 6px; font-size: 10px; color: #94a3b8; display: flex; align-items: center; gap: 4px; }
+  .subject-chip-dot { width: 4px; height: 4px; border-radius: 50%; }
+
+  .how-panel { background: #0d1a2e; border: 1px solid #1e3a5f; border-radius: 10px; padding: 14px; margin-bottom: 12px; }
+  .how-title { font-size: 10px; color: #475569; letter-spacing: 1px; margin-bottom: 10px; }
+  .how-step { display: flex; gap: 10px; margin-bottom: 7px; align-items: flex-start; }
+  .how-num { width: 18px; height: 18px; border-radius: 50%; background: #1e3a5f; color: #7dd3fc; font-size: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-weight: 700; }
+  .how-desc { font-size: 12px; color: #94a3b8; line-height: 1.4; padding-top: 1px; }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: #050c15; }
+  ::-webkit-scrollbar-thumb { background: #1e3a5f; border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-top">
+    <span style="font-size:26px">📋</span>
+    <div>
+      <div class="header-title">Subject Tag Assistant</div>
+      <div class="header-sub">UPSC Prelims + Karnataka PSC/KEA syllabus · All 11 rules</div>
+    </div>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- API KEYS -->
+  <div class="api-section">
+    <div class="api-section-title">🔑 API Keys</div>
+
+    <div class="api-row">
+      <div class="api-label">
+        <div class="dot" style="background:#22c55e"></div>
+        Anthropic (Claude) — Main Tagger
+        <span class="status-badge badge-required" id="claudeBadge">REQUIRED</span>
+      </div>
+      <input type="password" class="api-input" id="claudeKeyInput"
+        placeholder="sk-ant-api03-..."
+        oninput="onClaudeKeyChange(this.value)" />
+      <div class="api-hint">Get free key → <a href="https://console.anthropic.com/settings/keys" target="_blank">console.anthropic.com</a></div>
+    </div>
+
+    <div class="api-row">
+      <div class="api-label">
+        <div class="dot" style="background:#3b82f6"></div>
+        Google Gemini — Cross-Verification
+        <span class="status-badge badge-optional" id="geminiBadge">OPTIONAL</span>
+      </div>
+      <input type="password" class="api-input" id="geminiKeyInput"
+        placeholder="AIzaSy..."
+        oninput="onGeminiKeyChange(this.value)" />
+      <div class="api-hint">Free key → <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com</a></div>
+    </div>
+  </div>
+
+  <!-- UPLOAD -->
+  <div class="upload-zone" id="uploadZone" onclick="triggerFileInput()">
+    <div class="upload-icon" id="uploadIcon">📁</div>
+    <div class="upload-title" id="uploadTitle">Tap to upload your .html quiz file</div>
+    <div class="upload-sub" id="uploadSub">ALMOST_FINAL / DEMO_FINAL / any quiz template</div>
+    <div class="progress-wrap" id="progressWrap">
+      <div class="progress-bar" id="progressBar"></div>
+    </div>
+    <input type="file" id="fileInput" accept=".html,.HTML" style="display:none"
+      onchange="handleFile(this.files[0])">
+  </div>
+
+  <!-- LOG -->
+  <div class="log-panel" id="logPanel">
+    <div class="log-header-label">── PROCESSING LOG ──</div>
+    <div id="logEntries"></div>
+  </div>
+
+  <!-- TAG SUMMARY -->
+  <div class="tag-summary" id="tagSummary">
+    <div class="tag-summary-title" id="tagSummaryTitle">── TAGS APPLIED ──</div>
+    <div class="tag-chips" id="tagChips"></div>
+  </div>
+
+  <!-- RULES PANEL -->
+  <div class="rules-panel">
+    <div class="rules-header" onclick="toggleRules()">
+      <div class="rules-header-text">📜 TAGGING RULES REFERENCE (ALL 11)</div>
+      <div class="rules-toggle" id="rulesToggle">▼</div>
+    </div>
+    <div class="rules-body" id="rulesBody">
+      <div class="rules-section-title">RULE 11 — CA TIER SYSTEM</div>
+      <div class="tier-item" style="border-left:2px solid #1565c0">
+        <div><div class="tier-title">Tier 1 — Pure Subject Tag</div>
+        <div class="tier-desc">Constitutional articles, historical events, scientific laws, fixed geographic facts — NO CA- prefix</div></div>
+      </div>
+      <div class="tier-item" style="border-left:2px solid #00838f">
+        <div><div class="tier-title">Tier 2 — CA- [Subject]</div>
+        <div class="tier-desc">Budget figures → CA- Economics · Indices/Reports → CA- Economics or CA- Environment & Ecology · New species → CA- Environment & Ecology · Space missions → CA- Science & Tech · New waterways → CA- Indian Geography · GS2 welfare schemes → CA- Public Administration</div></div>
+      </div>
+      <div class="tier-item" style="border-left:2px solid #c62828">
+        <div><div class="tier-title">Tier 3 — Current Affairs</div>
+        <div class="tier-desc">MOUs, Military exercises, Sports, Books & Authors, Key Appointments, Awards, Summits, Obituaries, Defence deals, Scheme name launches (no deeper subject)</div></div>
+      </div>
+      <div class="tier-item" style="border-left:2px solid #374151">
+        <div><div class="tier-title">Tier 4 — General Knowledge</div>
+        <div class="tier-desc">NEVER manually assign. System auto-detect fallback only.</div></div>
+      </div>
+
+      <div class="rules-section-title">RULE 6 — OVERLAP EXAMPLES</div>
+      <div class="overlap-item"><div class="overlap-q">Budget questions</div><div class="overlap-a">→ Economics (not Polity)</div></div>
+      <div class="overlap-item"><div class="overlap-q">Tax holiday for tech companies</div><div class="overlap-a">→ CA- Economics (fiscal policy tested)</div></div>
+      <div class="overlap-item"><div class="overlap-q">Defence budget allocation figure</div><div class="overlap-a">→ CA- Economics (expenditure = fiscal)</div></div>
+      <div class="overlap-item"><div class="overlap-q">Karnataka personality in INC sessions</div><div class="overlap-a">→ Indian History (Modern), NOT Karnataka History</div></div>
+      <div class="overlap-item"><div class="overlap-q">Karnataka History</div><div class="overlap-a">→ Only for Karnataka's own dynasties / rulers / events</div></div>
+
+      <div class="rules-section-title">APPROVED SUBJECT LIST</div>
+      <div class="subject-chips" id="subjectChips"></div>
+    </div>
+  </div>
+
+  <!-- HOW IT WORKS -->
+  <div class="how-panel">
+    <div class="how-title">HOW IT WORKS</div>
+    <div class="how-step"><div class="how-num">1</div><div class="how-desc">Paste your Anthropic API key above (get free at console.anthropic.com)</div></div>
+    <div class="how-step"><div class="how-num">2</div><div class="how-desc">Optionally add Gemini key for cross-verification</div></div>
+    <div class="how-step"><div class="how-num">3</div><div class="how-desc">Upload your quiz .html file</div></div>
+    <div class="how-step"><div class="how-num">4</div><div class="how-desc">Claude tags every question using all 11 rules against UPSC/KEA syllabus</div></div>
+    <div class="how-step"><div class="how-num">5</div><div class="how-desc">Tags injected into manualSubjectTags + CA- colors added to SUBJECT_COLOR_MAP</div></div>
+    <div class="how-step"><div class="how-num">6</div><div class="how-desc">Tagged file auto-downloads — ready to use!</div></div>
+  </div>
+
+</div>
+
+<script>
+const SUBJECT_COLORS = {
+  "Indian Polity":              "#1565c0",
+  "Indian History (Modern)":   "#bf360c",
+  "Indian History (Medieval)": "#e65100",
+  "Indian History (Ancient)":  "#006400",
+  "Indian Geography":          "#00897b",
+  "World Geography":           "#0288d1",
+  "Economics":                 "#6a1b9a",
+  "Science & Tech":            "#f57c00",
+  "Environment & Ecology":     "#558b2f",
+  "Current Affairs":           "#c62828",
+  "Karnataka History":         "#8d6e63",
+  "Karnataka Geography":       "#2e7d32",
+  "Mental Ability":            "#4527a0",
+  "Public Administration":     "#00695c",
+  "General Knowledge":         "#1a1a1a",
+  "CA- Polity":                "#d81b60",
+  "CA- Economics":             "#00838f",
+  "CA- Science & Tech":        "#4a148c",
+  "CA- Environment & Ecology": "#283593",
+  "CA- General Knowledge":     "#827717",
+  "CA- Indian Geography":      "#6d4c41",
+  "CA- History (Modern)":      "#ff8f00",
+  "CA- History (Ancient)":     "#006400",
+  "CA- Public Administration": "#880e4f",
+};
+
+const SYSTEM_PROMPT = `You are a Subject Tag Assistant for competitive exam quiz HTML files (Karnataka PSC, KEA FDA/SDA/HK, UPSC Prelims).
+
+APPROVED SUBJECT LIST — use EXACTLY these names, no variations:
+Indian History (Modern), Indian History (Medieval), Indian History (Ancient), Indian Polity, Indian Geography, World Geography, Economics, Science & Tech, Environment & Ecology, Current Affairs, Karnataka History, Karnataka Geography, Mental Ability, Public Administration, General Knowledge (LAST RESORT ONLY).
+
+ALL 11 TAGGING RULES:
+RULE 1: Tag every question. No question left untagged.
+RULE 2: Use ONLY approved subjects above. No custom labels.
+RULE 3: Base tags on UPSC Prelims GS1-GS4 OR Karnataka PSC/KEA GK syllabus.
+RULE 4: CA question rooted in a subject → prefix CA- [Subject] e.g. CA- Economics, CA- Indian Geography.
+RULE 5: Static knowledge → pure subject tag. Recent events/budgets/schemes → CA- prefix.
+RULE 6 (MOST IMPORTANT — OVERLAP): Dominant knowledge tested determines tag, NOT the sector mentioned.
+  - Budget questions → Economics (NOT Polity even if constitutional articles cited)
+  - Tax holiday for tech → CA- Economics (fiscal policy is what's tested)
+  - Defence budget figure → CA- Economics (expenditure = fiscal knowledge)
+  - Karnataka personality in national context (INC sessions, national events) → national subject tag, NOT Karnataka History
+  - Karnataka History ONLY for Karnataka's own dynasties, rulers, Karnataka-specific historical events
+RULE 7: Never assign General Knowledge if ANY other subject fits even loosely.
+RULE 11 — CA TIERS:
+  Tier 1 Pure Subject: Constitutional articles, historical facts, scientific laws, fixed geography → no CA-
+  Tier 2 CA-[Subject]: Budget figures → CA- Economics; HDI/GHI/EPI reports → CA- Economics or CA- Environment & Ecology; New species/wildlife → CA- Environment & Ecology; Space missions → CA- Science & Tech; New waterways/corridors → CA- Indian Geography; GS2 welfare schemes → CA- Public Administration; Heritage announcements → CA- History (Ancient/Modern)
+  Tier 3 Current Affairs: MOUs, military exercises, sports, books/authors, key appointments, awards, summits, obituaries, defence deals, scheme name launches (no deeper subject link)
+  Tier 4 General Knowledge: NEVER assign manually.
+
+OUTPUT FORMAT: Return ONLY valid JSON. No markdown. No explanation. No preamble.
+Example: {"1": "Indian Polity", "2": "CA- Economics", "3": "Environment & Ecology"}
+Every question number must appear.`;
+
+let claudeKey = '', geminiKey = '', processing = false, rulesOpen = false;
+
+// Build subject chips
+(function() {
+  const c = document.getElementById('subjectChips');
+  Object.entries(SUBJECT_COLORS).filter(([k]) => !k.startsWith('CA-')).forEach(([s, col]) => {
+    const d = document.createElement('div');
+    d.className = 'subject-chip';
+    d.style.border = `1px solid ${col}50`;
+    d.innerHTML = `<div class="subject-chip-dot" style="background:${col}"></div>${s}`;
+    c.appendChild(d);
+  });
+})();
+
+function onClaudeKeyChange(v) {
+  claudeKey = v.trim();
+  const b = document.getElementById('claudeBadge');
+  const i = document.getElementById('claudeKeyInput');
+  if (claudeKey.startsWith('sk-ant')) { b.className='status-badge badge-ok'; b.textContent='READY ✓'; i.classList.add('ok'); }
+  else if (claudeKey.length) { b.className='status-badge badge-required'; b.textContent='CHECK KEY'; i.classList.remove('ok'); }
+  else { b.className='status-badge badge-required'; b.textContent='REQUIRED'; i.classList.remove('ok'); }
+}
+
+function onGeminiKeyChange(v) {
+  geminiKey = v.trim();
+  const b = document.getElementById('geminiBadge');
+  const i = document.getElementById('geminiKeyInput');
+  if (geminiKey.length > 10) { b.className='status-badge badge-ok'; b.textContent='READY ✓'; i.classList.add('ok'); }
+  else { b.className='status-badge badge-optional'; b.textContent='OPTIONAL'; i.classList.remove('ok'); }
+}
+
+function toggleRules() {
+  rulesOpen = !rulesOpen;
+  document.getElementById('rulesBody').classList.toggle('open', rulesOpen);
+  document.getElementById('rulesToggle').textContent = rulesOpen ? '▲' : '▼';
+}
+
+function triggerFileInput() {
+  if (processing) return;
+  if (!claudeKey) { alert('Please enter your Anthropic API key first.\n\nGet it free at: console.anthropic.com/settings/keys'); document.getElementById('claudeKeyInput').focus(); return; }
+  document.getElementById('fileInput').value = '';
+  document.getElementById('fileInput').click();
+}
+
+function setProgress(p) { document.getElementById('progressBar').style.width = p + '%'; }
+
+function addLog(msg, type='info') {
+  const panel = document.getElementById('logPanel');
+  panel.classList.add('visible');
+  const e = document.createElement('div');
+  e.className = `log-entry log-${type}`;
+  e.textContent = msg;
+  document.getElementById('logEntries').appendChild(e);
+  panel.scrollTop = panel.scrollHeight;
+}
+
+function clearUI() {
+  document.getElementById('logEntries').innerHTML = '';
+  document.getElementById('logPanel').classList.remove('visible');
+  document.getElementById('tagSummary').classList.remove('visible');
+}
+
+function setUploadState(s, detail) {
+  const z=document.getElementById('uploadZone'), ic=document.getElementById('uploadIcon'),
+        t=document.getElementById('uploadTitle'), sb=document.getElementById('uploadSub'),
+        pw=document.getElementById('progressWrap');
+  z.className = 'upload-zone' + (s==='processing'?' processing':s==='done'?' done':s==='err'?' err':'');
+  if (s==='processing') { ic.textContent='⚙️'; t.textContent=detail||'Analyzing...'; sb.textContent='Claude is reading each question against the syllabus'; pw.style.display='block'; setProgress(0); }
+  else if (s==='done') { ic.textContent='✅'; t.textContent='Done! Tap to process another file'; sb.textContent='Tagged file has been downloaded'; pw.style.display='none'; }
+  else if (s==='err') { ic.textContent='❌'; t.textContent='Error — tap to try again'; sb.textContent=detail||'Check the log for details'; pw.style.display='none'; }
+  else { ic.textContent='📁'; t.textContent='Tap to upload your .html quiz file'; sb.textContent='ALMOST_FINAL / DEMO_FINAL / any quiz template'; pw.style.display='none'; }
+}
+
+function showTagSummary(tags, total) {
+  const counts = {};
+  Object.values(tags).forEach(t => { counts[t]=(counts[t]||0)+1; });
+  const sorted = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+  document.getElementById('tagSummaryTitle').textContent = `── TAGS APPLIED — ${total} QUESTIONS ──`;
+  const chips = document.getElementById('tagChips');
+  chips.innerHTML = '';
+  sorted.forEach(([tag, count]) => {
+    const col = SUBJECT_COLORS[tag]||'#374151';
+    const c = document.createElement('div');
+    c.className='tag-chip'; c.style.border=`1px solid ${col}70`;
+    c.innerHTML=`<div class="tag-chip-dot" style="background:${col}"></div><span class="tag-chip-name">${tag}</span><span class="tag-chip-count">${count}</span>`;
+    chips.appendChild(c);
+  });
+  document.getElementById('tagSummary').classList.add('visible');
+}
+
+function extractQuestions(html) {
+  const questions=[], seen=new Set();
+  const rx=/"text"\s*:\s*"((?:[^"\\]|\\.)*)"/g;
+  let m;
+  while ((m=rx.exec(html))!==null) {
+    let raw=m[1];
+    const nm=raw.match(/Q(\d+)\./); if(!nm) continue;
+    const qNum=parseInt(nm[1]); if(seen.has(qNum)) continue; seen.add(qNum);
+    raw=raw.replace(/\\u([0-9a-fA-F]{4})/g,(x,c)=>{const n=parseInt(c,16);return(n>=0x0C00&&n<=0x0D7F)?'':String.fromCharCode(n);});
+    raw=raw.replace(/\\n/g,' ').replace(/\\t/g,' ').replace(/\\r/g,'').replace(/\\\\/g,'\\').replace(/\\"/g,'"');
+    raw=raw.replace(/<[^>]+>/g,' ');
+    raw=raw.replace(/\s*\/\s*[^\x00-\x7F].*/,'').replace(/\s*\/\s*$/,'');
+    raw=raw.replace(/[^\x20-\x7E]/g,'');
+    raw=raw.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&#x27;/g,"'").replace(/&quot;/g,'"');
+    raw=raw.replace(/\s+/g,' ').trim();
+    raw=raw.replace(/^Q\d+\.\s*[\u29BE\u29BF»\u2665]\s*/,'').replace(/^[^\w'"(]{1,6}/,'').trim();
+    if(raw.length>15) questions.push({num:qNum, text:raw.substring(0,500)});
+  }
+  return questions.sort((a,b)=>a.num-b.num);
+}
+
+async function callClaude(questions, topic) {
+  const topicLine = topic ? `Quiz Topic: "${topic}"\n` : '';
+  const qLines = questions.map(q=>`Q${q.num}: ${q.text}`).join('\n\n');
+  const userMsg = `${topicLine}Total questions: ${questions.length}\n\n${qLines}\n\nAnalyze every question carefully. Return ONLY the JSON object with all ${questions.length} question numbers tagged.`;
+
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': claudeKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'   // ← required for browser CORS
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 2000,
+      system: SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: userMsg }]
+    })
+  });
+
+  if (!resp.ok) {
+    const err = await resp.json().catch(()=>({error:{message:resp.statusText}}));
+    throw new Error(err.error?.message || `HTTP ${resp.status}`);
+  }
+  const data = await resp.json();
+  let text = (data.content?.[0]?.text||'').replace(/```json|```/g,'').trim();
+  const jm = text.match(/\{[\s\S]+\}/);
+  if (!jm) throw new Error('No valid JSON in Claude response');
+  return JSON.parse(jm[0]);
+}
+
+async function callGemini(questions, topic, apiKey) {
+  const qLines = questions.map(q=>`Q${q.num}: ${q.text.substring(0,200)}`).join('\n');
+  const prompt = `Tag these competitive exam questions (UPSC Prelims / Karnataka PSC / KEA).
+SUBJECTS: Indian History (Modern/Medieval/Ancient), Indian Polity, Indian Geography, World Geography, Economics, Science & Tech, Environment & Ecology, Current Affairs, Karnataka History, Karnataka Geography, Mental Ability, Public Administration, General Knowledge (last resort only).
+CA- PREFIX: CA question rooted in subject → "CA- [Subject]". Purely news-based → "Current Affairs".
+OVERLAP: Dominant knowledge tested determines tag. Budget → Economics. Defence budget figure → CA- Economics.
+Topic: "${topic||'Mixed'}"
+${qLines}
+Return ONLY valid JSON: {"1": "tag", "2": "tag", ...}`;
+
+  const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ contents:[{parts:[{text:prompt}]}], generationConfig:{temperature:0.1,maxOutputTokens:1500} })
+  });
+  if (!resp.ok) { const e=await resp.json().catch(()=>({})); throw new Error(e.error?.message||`HTTP ${resp.status}`); }
+  const data=await resp.json();
+  const text=(data.candidates?.[0]?.content?.parts?.[0]?.text||'').replace(/```json|```/g,'');
+  const jm=text.match(/\{[\s\S]+\}/); if(!jm) throw new Error('No valid JSON from Gemini');
+  return JSON.parse(jm[0]);
+}
+
+function buildTagsBlock(tags) {
+  const sorted=Object.entries(tags).sort((a,b)=>parseInt(a[0])-parseInt(b[0]));
+  const lines=sorted.map(([n,t])=>`    ${String(n).padEnd(3)}: "${t}",`).join('\n');
+  return `  const manualSubjectTags = {\n    // ── Subject tags — Generated by Subject Tag Assistant ──\n    // ── Syllabus: UPSC Prelims GS1–GS4 + Karnataka PSC/KEA GK ──\n${lines}\n  };`;
+}
+
+function injectIntoHtml(html, tags) {
+  const newBlock = buildTagsBlock(tags);
+  let updated = html.replace(/const\s+manualSubjectTags\s*=\s*\{[\s\S]*?\};/, newBlock);
+  if (updated === html) return null;
+  if (!updated.includes("'CA- Polity'")) {
+    const caBlock = `\n      'Indian History (Modern)':   '#bf360c',\n      'Indian History (Medieval)': '#e65100',\n      'Indian History (Ancient)':  '#006400',\n      'Karnataka History':         '#8d6e63',\n      'Karnataka Geography':       '#2e7d32',\n      'CA- Polity':                '#d81b60',\n      'CA- Economics':             '#00838f',\n      'CA- Science & Tech':        '#4a148c',\n      'CA- Environment & Ecology': '#283593',\n      'CA- General Knowledge':     '#827717',\n      'CA- Indian Geography':      '#6d4c41',\n      'CA- History (Modern)':      '#ff8f00',\n      'CA- History (Ancient)':     '#006400',\n      'CA- Public Administration': '#880e4f',`;
+    const anchor = "'Science & Tech':        '#f57c00'";
+    const idx = updated.indexOf(anchor);
+    if (idx !== -1) {
+      const closeIdx = updated.indexOf('\n  };', idx);
+      if (closeIdx !== -1) updated = updated.slice(0,closeIdx)+caBlock+updated.slice(closeIdx);
+    }
+  }
+  return updated;
+}
+
+async function handleFile(file) {
+  if (!file||processing) return;
+  if (!claudeKey) { alert('Please enter your Anthropic API key first.'); return; }
+  processing=true; clearUI(); setUploadState('processing');
+  try {
+    const html = await file.text();
+    addLog(`📂 ${file.name}  (${(html.length/1024).toFixed(0)} KB)`, 'dim');
+
+    addLog('🔍 Extracting questions...', 'info');
+    const questions = extractQuestions(html);
+    if (questions.length===0) { addLog('❌ No questions found. Is this a valid quiz HTML file?','error'); setUploadState('err','No questions found'); processing=false; return; }
+    addLog(`✅ Found ${questions.length} questions`, 'success');
+    setProgress(15);
+    setUploadState('processing', `Analyzing ${questions.length} questions...`);
+
+    const tm = html.match(/"topic"\s*:\s*"([^"]+)"/);
+    const topic = tm ? tm[1] : '';
+    if (topic) addLog(`📚 Topic: ${topic}`, 'dim');
+
+    addLog('🤖 Claude — tagging every question against syllabus...', 'info');
+    setProgress(30);
+
+    let claudeTags;
+    try {
+      claudeTags = await callClaude(questions, topic);
+      addLog(`✅ Claude: ${Object.keys(claudeTags).length} tags returned`, 'success');
+    } catch(e) {
+      addLog(`❌ Claude error: ${e.message}`, 'error');
+      if (e.message.includes('401')||e.message.includes('auth')||e.message.includes('invalid')) addLog('⚠️  Check your Anthropic API key — it may be invalid or expired','warn');
+      setUploadState('err', e.message); processing=false; return;
+    }
+
+    setProgress(65);
+
+    if (geminiKey) {
+      addLog('🔵 Gemini — cross-verifying tags...', 'info');
+      try {
+        const gt = await callGemini(questions, topic, geminiKey);
+        addLog(`✅ Gemini: ${Object.keys(gt).length} tags returned`, 'success');
+        let diffs=0;
+        for (const [n,ct] of Object.entries(claudeTags)) { if(gt[n]&&gt[n]!==ct){diffs++; addLog(`⚠️  Q${n}: Claude="${ct}" vs Gemini="${gt[n]}"`, 'warn');} }
+        if (diffs===0) addLog('✅ Both APIs agree on all tags!','success');
+        else addLog(`📊 ${diffs} difference(s) — Claude's analysis applied (stricter rules)`, 'dim');
+      } catch(e) { addLog(`⚠️  Gemini skipped: ${e.message}`, 'warn'); }
+    }
+
+    setProgress(82);
+    showTagSummary(claudeTags, questions.length);
+
+    addLog('💉 Injecting tags into HTML...', 'info');
+    const updated = injectIntoHtml(html, claudeTags);
+    if (!updated) { addLog('❌ manualSubjectTags block not found. Is this the right template?','error'); setUploadState('err','Block not found'); processing=false; return; }
+
+    setProgress(96);
+
+    const outName = file.name.replace(/\.(html|HTML)$/, '_TAGGED.$1');
+    const blob = new Blob([updated], {type:'text/html'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href=url; a.download=outName;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    setProgress(100);
+    addLog(`📥 Downloaded: ${outName}`, 'success');
+    addLog('🎉 All done! Your tagged file is ready.', 'success');
+    setUploadState('done');
+  } catch(e) {
+    addLog(`❌ Unexpected error: ${e.message}`, 'error');
+    setUploadState('err', e.message);
+  } finally { processing=false; }
+}
+</script>
+</body>
+</html>
